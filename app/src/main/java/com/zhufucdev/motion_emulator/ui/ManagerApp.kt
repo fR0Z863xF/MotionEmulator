@@ -2,6 +2,7 @@
 
 package com.zhufucdev.motion_emulator.ui
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -79,6 +80,7 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.zhufucdev.me.stub.CellTimeline
 import com.zhufucdev.me.stub.Motion
+import com.zhufucdev.me.stub.Trace
 import com.zhufucdev.motion_emulator.R
 import com.zhufucdev.motion_emulator.data.Telephonies
 import com.zhufucdev.motion_emulator.data.DataLoader
@@ -86,7 +88,10 @@ import com.zhufucdev.motion_emulator.data.Motions
 import com.zhufucdev.motion_emulator.data.Traces
 import com.zhufucdev.motion_emulator.extension.dateString
 import com.zhufucdev.motion_emulator.extension.displayName
+import com.zhufucdev.motion_emulator.extension.estimateSpeed
+import com.zhufucdev.motion_emulator.extension.estimateTimespan
 import com.zhufucdev.motion_emulator.extension.effectiveTimeFormat
+import com.zhufucdev.motion_emulator.extension.toFixed
 import com.zhufucdev.motion_emulator.ui.component.CaptionText
 import com.zhufucdev.motion_emulator.ui.component.Expandable
 import com.zhufucdev.motion_emulator.ui.component.HorizontalSpacer
@@ -105,6 +110,7 @@ import com.zhufucdev.motion_emulator.ui.theme.PaddingSmall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.DurationUnit
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
@@ -112,6 +118,8 @@ fun ManagerApp(
     paddingValues: PaddingValues,
     managerModel: ManagerViewModel = viewModel()
 ) {
+    val coroutine = rememberCoroutineScope()
+    val navController = LocalNavControllerProvider.current
     var actionTransition by remember {
         mutableFloatStateOf(0f)
     }
@@ -179,7 +187,14 @@ fun ManagerApp(
                                 HorizontalSpacer()
                                 FloatingActionButton(
                                     onClick = {
-
+                                        expanded = false
+                                        coroutine.launch {
+                                            when (it) {
+                                                Traces -> navController?.navigate("${HomeDestinations.Trace.route}?returnToData=true")
+                                                Motions -> navController?.navigate("${HomeDestinations.Record.route}?motion=true&telephony=false&returnToData=true")
+                                                Telephonies -> navController?.navigate("${HomeDestinations.Record.route}?motion=false&telephony=true&returnToData=true")
+                                            }
+                                        }
                                     },
                                     content = {
                                         Icon(
@@ -215,6 +230,7 @@ fun ManagerApp(
     }
 }
 
+@SuppressLint("ViewModelConstructorInComposable")
 @Composable
 @Preview
 fun ActivityPreview() {
@@ -432,8 +448,20 @@ fun OverviewScreen(viewModel: ManagerViewModel = viewModel()) {
                         foreground = {
                             val navController = LocalNavControllerProvider.current
                             val store = viewModel.storeByClass[item.clazz]!!
+                            val summary = remember(item) { item.summaryText(context) }
                             ListItem(
-                                title = { Text(displayName) },
+                                title = {
+                                    Column {
+                                        Text(displayName)
+                                        if (summary != null) {
+                                            Text(
+                                                text = summary,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = iconByStore[store]!!,
@@ -836,4 +864,44 @@ private val nameIdByStore by lazy {
         Telephonies to R.string.title_cells,
         Traces to R.string.title_trace
     )
+}
+
+private fun DataLoader<*>.summaryText(context: android.content.Context): String? {
+    return when (val data = value) {
+        is Motion -> {
+            val duration = data.estimateTimespan().toString(DurationUnit.SECONDS, decimals = 2)
+            buildString {
+                append(context.getString(R.string.text_in_duration, duration))
+                data.estimateSpeed()?.let {
+                    append(", ")
+                    append(
+                        context.getString(
+                            R.string.text_estimated,
+                            it.toFixed(2) + context.getString(R.string.suffix_velocity)
+                        )
+                    )
+                }
+            }
+        }
+
+        is CellTimeline -> context.getString(R.string.text_pieces_of_record, data.moments.size)
+        is Trace -> {
+            val distance = data.points.zipWithNext().sumOf { (from, to) ->
+                val results = FloatArray(1)
+                android.location.Location.distanceBetween(
+                    from.latitude,
+                    from.longitude,
+                    to.latitude,
+                    to.longitude,
+                    results
+                )
+                results[0].toDouble()
+            }
+            context.getString(
+                R.string.text_in_length,
+                distance.toFixed(2) + context.getString(R.string.suffix_meter)
+            )
+        }
+        else -> null
+    }
 }

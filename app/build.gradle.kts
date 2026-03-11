@@ -1,19 +1,22 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsKotlinAndroid)
+    alias(libs.plugins.jetbrainsKotlinCompose)
     alias(libs.plugins.serialization)
     alias(libs.plugins.secrets)
 }
 
 android {
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.zhufucdev.motion_emulator"
-        minSdk = 24
-        targetSdk = 34
-        versionCode = 24
-        versionName = "1.2.2"
+        minSdk = 30
+        targetSdk = 36
+        versionCode = 25
+        versionName = "1.2.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -31,15 +34,18 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
     buildFeatures {
         viewBinding = true
@@ -47,9 +53,6 @@ android {
         buildConfig = true
     }
     namespace = "com.zhufucdev.motion_emulator"
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.6"
-    }
     packaging {
         resources {
             excludes += "META-INF/*"

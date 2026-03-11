@@ -1,5 +1,6 @@
 package com.zhufucdev.motion_emulator.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
@@ -68,8 +69,8 @@ fun TraceEditor(
         noFloatingButton()
     }
 
-    var formulaToken by remember { mutableStateOf(0L) }
-    val lifecycleCoroutine = remember { CoroutineScope(Dispatchers.Main) }
+    var saveToken by remember { mutableLongStateOf(0L) }
+    val lifecycleCoroutine = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbars = LocalSnackbarProvider.current
     var rename by remember { mutableStateOf(target.metadata.displayName(context)) }
@@ -110,22 +111,17 @@ fun TraceEditor(
         )
     }
 
-    LaunchedEffect(formulas, factors) {
-        formulaToken = System.currentTimeMillis()
-        val captured = formulaToken
-        delay(1.seconds)
-        if (formulaToken != captured) return@LaunchedEffect
-
-        commit()
+    fun scheduleCommit() {
+        saveToken = System.currentTimeMillis()
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            lifecycleCoroutine.launch {
-                commit()
-            }
-            lifecycleCoroutine.cancel()
-        }
+    LaunchedEffect(saveToken) {
+        if (saveToken == 0L) return@LaunchedEffect
+        val captured = saveToken
+        delay(1.seconds)
+        if (saveToken != captured) return@LaunchedEffect
+
+        commit()
     }
 
     LazyColumn(
@@ -143,6 +139,7 @@ fun TraceEditor(
                 lifecycleCoroutine.launch {
                     viewModel.save(target.copy(metadata = target.metadata.copy(name = rename)))
                 }
+                scheduleCommit()
             },
             icon = {
                 Icon(
@@ -195,6 +192,7 @@ fun TraceEditor(
                             onClick = {
                                 expanded = false
                                 coordSys = it
+                                scheduleCommit()
                             }
                         )
                     }
@@ -212,7 +210,6 @@ fun TraceEditor(
             item(key = it.id, contentType = "factor") {
                 Box(
                     Modifier
-                        .animateItemPlacement()
                         .dragDroppable(
                             element = it,
                             list = factors,
@@ -222,9 +219,11 @@ fun TraceEditor(
                 ) {
                     FactorSaltItem(
                         factor = it,
+                        onChanged = { scheduleCommit() },
                         onRemove = {
                             val index = factors.indexOf(it)
                             factors.remove(it)
+                            scheduleCommit()
 
                             lifecycleCoroutine.launch {
                                 val result =
@@ -236,6 +235,7 @@ fun TraceEditor(
 
                                 if (result == SnackbarResult.ActionPerformed) {
                                     factors.insert(index, it)
+                                    scheduleCommit()
                                 }
                             }
                         }
@@ -248,7 +248,6 @@ fun TraceEditor(
             item(key = it.id, contentType = it.type) {
                 Box(
                     Modifier
-                        .animateItemPlacement()
                         .dragDroppable(
                             element = it,
                             list = formulas,
@@ -258,9 +257,11 @@ fun TraceEditor(
                 ) {
                     SaltItemSelector(
                         formula = it,
+                        onChanged = { scheduleCommit() },
                         onRemove = {
                             val index = formulas.indexOf(it)
                             formulas.remove(it)
+                            scheduleCommit()
 
                             lifecycleCoroutine.launch {
                                 val result =
@@ -275,6 +276,7 @@ fun TraceEditor(
 
                                 if (result == SnackbarResult.ActionPerformed) {
                                     formulas.insert(index, it)
+                                    scheduleCommit()
                                 }
                             }
                         }
@@ -296,6 +298,7 @@ fun TraceEditor(
                     } else {
                         factors.add(MutableFactor(name = nextName(factors)))
                     }
+                    scheduleCommit()
                 }
             )
         }
@@ -334,7 +337,7 @@ private fun nextName(existing: List<MutableFactor>): String {
 }
 
 @Composable
-fun FactorSaltItem(factor: MutableFactor, onRemove: () -> Unit) {
+fun FactorSaltItem(factor: MutableFactor, onChanged: () -> Unit, onRemove: () -> Unit) {
     var name by remember { mutableStateOf(factor.name) }
     SaltItemScaffold(
         icon = {
@@ -352,13 +355,14 @@ fun FactorSaltItem(factor: MutableFactor, onRemove: () -> Unit) {
                     onValueChange = {
                         factor.name = it.trim()
                         name = it
+                        onChanged()
                     },
                     label = { Text(stringResource(R.string.title_name)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 VerticalSpacer()
 
-                FactorCanvas(factor)
+                FactorCanvas(factor, onChanged)
             }
         },
         overview = { Text(factor.name) },
@@ -368,7 +372,7 @@ fun FactorSaltItem(factor: MutableFactor, onRemove: () -> Unit) {
 
 @OptIn(ExperimentalTextApi::class)
 @Composable
-fun FactorCanvas(factor: MutableFactor) {
+fun FactorCanvas(factor: MutableFactor, onChanged: () -> Unit) {
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.bodyMedium
     val outlineColor = MaterialTheme.colorScheme.outline
@@ -442,6 +446,7 @@ fun FactorCanvas(factor: MutableFactor) {
                             if (newProjection.isValid()) {
                                 controlStart = newControl
                                 factor.distribution.controlStart = newProjection
+                                onChanged()
                             }
                         } else if (isEnd) {
                             val newControl = controlEnd + amountPx
@@ -453,6 +458,7 @@ fun FactorCanvas(factor: MutableFactor) {
                             if (newProjection.isValid()) {
                                 controlEnd = newControl
                                 factor.distribution.controlEnd = newProjection
+                                onChanged()
                             }
                         }
                     }
@@ -600,18 +606,18 @@ fun NewSaltItem(modifier: Modifier = Modifier, onClick: (Boolean, SaltType) -> U
 }
 
 @Composable
-fun SaltItemSelector(formula: MutableSaltElement, onRemove: () -> Unit) {
+fun SaltItemSelector(formula: MutableSaltElement, onChanged: () -> Unit, onRemove: () -> Unit) {
     when (formula.type) {
-        SaltType.Anchor -> AnchorItem(formula, onRemove)
-        SaltType.Translation -> TranslationItem(formula, onRemove)
-        SaltType.Rotation -> RotationItem(formula, onRemove)
-        SaltType.Scale -> ScaleItem(formula, onRemove)
-        SaltType.CustomMatrix -> CustomMatrixItem(formula, onRemove)
+        SaltType.Anchor -> AnchorItem(formula, onChanged, onRemove)
+        SaltType.Translation -> TranslationItem(formula, onChanged, onRemove)
+        SaltType.Rotation -> RotationItem(formula, onChanged, onRemove)
+        SaltType.Scale -> ScaleItem(formula, onChanged, onRemove)
+        SaltType.CustomMatrix -> CustomMatrixItem(formula, onChanged, onRemove)
     }
 }
 
 @Composable
-fun AnchorItem(formula: MutableSaltElement, onRemove: () -> Unit) =
+fun AnchorItem(formula: MutableSaltElement, onChanged: () -> Unit, onRemove: () -> Unit) =
     DualFieldSnippet(
         formula = formula,
         icon = painterResource(R.drawable.ic_baseline_anchor_24),
@@ -620,11 +626,12 @@ fun AnchorItem(formula: MutableSaltElement, onRemove: () -> Unit) =
             stringResource(R.string.name_latitude),
             stringResource(R.string.name_longitude)
         ),
+        onChanged = onChanged,
         onRemove = onRemove
     )
 
 @Composable
-fun TranslationItem(formula: MutableSaltElement, onRemove: () -> Unit) =
+fun TranslationItem(formula: MutableSaltElement, onChanged: () -> Unit, onRemove: () -> Unit) =
     DualFieldSnippet(
         formula = formula,
         icon = painterResource(R.drawable.ic_baseline_open_with_24),
@@ -633,12 +640,13 @@ fun TranslationItem(formula: MutableSaltElement, onRemove: () -> Unit) =
             stringResource(R.string.name_x),
             stringResource(R.string.name_y)
         ),
+        onChanged = onChanged,
         onRemove = onRemove
     )
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-fun RotationItem(formula: MutableSaltElement, onRemove: () -> Unit) {
+fun RotationItem(formula: MutableSaltElement, onChanged: () -> Unit, onRemove: () -> Unit) {
     val simpleMode = formula[1] == "0"
     SaltItemScaffold(
         icon = {
@@ -667,6 +675,7 @@ fun RotationItem(formula: MutableSaltElement, onRemove: () -> Unit) {
                             onValueChange = {
                                 value = it.roundToInt().toFloat()
                                 formula.values[0] = value.toString()
+                                onChanged()
                             },
                             valueRange = 0F..360F,
                             steps = 35,
@@ -722,6 +731,7 @@ fun RotationItem(formula: MutableSaltElement, onRemove: () -> Unit) {
                                                     newValue
                                                 }
                                                 formula.values[0] = value.toString()
+                                                onChanged()
                                                 moving =
                                                     if (dragAmount < 0) 'I' else 'D' // for decrease
                                             }
@@ -757,6 +767,7 @@ fun RotationItem(formula: MutableSaltElement, onRemove: () -> Unit) {
                                             formula[1] = "1" // turn of simple mode
                                             // don't ask me why
                                             formula[0] = (value * PI / 180).toString()
+                                            onChanged()
                                         }
                                     )
                                 }
@@ -769,6 +780,7 @@ fun RotationItem(formula: MutableSaltElement, onRemove: () -> Unit) {
                         value = formula.values.first(),
                         onValueChange = {
                             formula.values[0] = it
+                            onChanged()
                         }
                     )
                 }
@@ -788,7 +800,7 @@ fun RotationItem(formula: MutableSaltElement, onRemove: () -> Unit) {
 }
 
 @Composable
-fun ScaleItem(formula: MutableSaltElement, onRemove: () -> Unit) {
+fun ScaleItem(formula: MutableSaltElement, onChanged: () -> Unit, onRemove: () -> Unit) {
     DualFieldSnippet(
         formula = formula,
         icon = painterResource(R.drawable.ic_baseline_open_in_full_24),
@@ -797,12 +809,13 @@ fun ScaleItem(formula: MutableSaltElement, onRemove: () -> Unit) {
             stringResource(R.string.name_ratio_x),
             stringResource(R.string.name_ratio_y)
         ),
+        onChanged = onChanged,
         onRemove = onRemove
     )
 }
 
 @Composable
-fun CustomMatrixItem(formula: MutableSaltElement, onRemove: () -> Unit) {
+fun CustomMatrixItem(formula: MutableSaltElement, onChanged: () -> Unit, onRemove: () -> Unit) {
     SaltItemScaffold(
         icon = {
             Icon(
@@ -820,7 +833,10 @@ fun CustomMatrixItem(formula: MutableSaltElement, onRemove: () -> Unit) {
                     SaltTextField(
                         label = "",
                         value = formula.values.first(),
-                        onValueChange = { formula.values[0] = it },
+                        onValueChange = {
+                            formula.values[0] = it
+                            onChanged()
+                        },
                         modifier = Modifier
                             .weight(1F)
                             .padding(end = PaddingSmall)
@@ -829,7 +845,10 @@ fun CustomMatrixItem(formula: MutableSaltElement, onRemove: () -> Unit) {
                     SaltTextField(
                         label = "",
                         value = formula.values[1],
-                        onValueChange = { formula.values[1] = it },
+                        onValueChange = {
+                            formula.values[1] = it
+                            onChanged()
+                        },
                         modifier = Modifier.weight(1F)
                     )
                 }
@@ -838,7 +857,10 @@ fun CustomMatrixItem(formula: MutableSaltElement, onRemove: () -> Unit) {
                     SaltTextField(
                         label = "",
                         value = formula.values[2],
-                        onValueChange = { formula.values[2] = it },
+                        onValueChange = {
+                            formula.values[2] = it
+                            onChanged()
+                        },
                         modifier = Modifier
                             .weight(1F)
                             .padding(end = PaddingSmall)
@@ -847,7 +869,10 @@ fun CustomMatrixItem(formula: MutableSaltElement, onRemove: () -> Unit) {
                     SaltTextField(
                         label = "",
                         value = formula.values[3],
-                        onValueChange = { formula.values[3] = it },
+                        onValueChange = {
+                            formula.values[3] = it
+                            onChanged()
+                        },
                         modifier = Modifier.weight(1F)
                     )
                 }
@@ -997,6 +1022,7 @@ fun DualFieldSnippet(
     icon: Painter,
     header: String,
     labels: Array<String>,
+    onChanged: () -> Unit,
     onRemove: () -> Unit
 ) {
     SaltItemScaffold(
@@ -1010,13 +1036,19 @@ fun DualFieldSnippet(
             Column {
                 SaltTextField(
                     value = formula[0],
-                    onValueChange = { formula[0] = it },
+                    onValueChange = {
+                        formula[0] = it
+                        onChanged()
+                    },
                     label = labels[0]
                 )
                 VerticalSpacer()
                 SaltTextField(
                     value = formula[1],
-                    onValueChange = { formula[1] = it },
+                    onValueChange = {
+                        formula[1] = it
+                        onChanged()
+                    },
                     label = labels[1]
                 )
             }
@@ -1026,6 +1058,7 @@ fun DualFieldSnippet(
     )
 }
 
+@SuppressLint("ViewModelConstructorInComposable")
 @Composable
 @Preview
 fun TraceEditorPreview() {

@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
                     updater.check()
                 }
 
-                AppHome(calculateWindowSizeClass(this))
+                AppHome(calculateWindowSizeClass(this), updater)
             }
         }
     }
@@ -62,7 +62,8 @@ class MainActivity : ComponentActivity() {
         initializer {
             Emulations.require(this@MainActivity)
             EmulationsViewModel(
-                configs = Emulations.list()
+                configs = Emulations.list(),
+                context = this@MainActivity
             )
         }
 

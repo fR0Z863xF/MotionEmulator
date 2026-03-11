@@ -451,7 +451,7 @@ private fun LazyListScope.operativeArea(
                         installRequest(file)
                     }
                 },
-                modifier = mod.animateItemPlacement()
+                modifier = mod
             ) {
                 PluginItemView(
                     item = it,
@@ -674,7 +674,9 @@ fun PluginsAppPreview() {
     MotionEmulatorTheme {
         PluginsApp(
             paddingValues = PaddingValues(0.dp),
-            viewModel = PluginViewModel(emptyList(), flow {  })
+            viewModel = previewPluginViewModel
         )
     }
 }
+
+private val previewPluginViewModel = PluginViewModel(emptyList(), flow { })

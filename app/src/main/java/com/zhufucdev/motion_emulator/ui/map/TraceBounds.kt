@@ -13,6 +13,10 @@ import com.zhufucdev.me.stub.Trace
 data class TraceBounds(val northeast: Point, val southwest: Point)
 
 fun TraceBounds(trace: Trace): TraceBounds {
+    if (trace.points.isEmpty()) {
+        val center = Point(39.9, 116.39, trace.coordinateSystem)
+        return TraceBounds(center, center)
+    }
     return if (trace.coordinateSystem == CoordinateSystem.WGS84) {
         val builder = com.google.android.gms.maps.model.LatLngBounds.builder()
         trace.points.forEach {

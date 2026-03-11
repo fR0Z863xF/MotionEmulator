@@ -74,18 +74,21 @@ abstract class DataStore<T : Data> {
     fun put(record: DataLoader<T>, overwrite: Boolean = false): DataLoader<T>? {
         if (data.containsKey(record.id) && !overwrite) return null
 
-        if (record is WorkingData<T>) {
-            val file = File(rootDir, record.storeName)
-            file.outputStream().use {
-                Json.encodeToStream(dataSerializer, record.value, it)
-            }
+        val file = File(rootDir, record.storeName)
+        file.outputStream().use {
+            Json.encodeToStream(dataSerializer, record.value, it)
         }
-        data[record.id] = record
-        return record
+        val metaFile = File(rootDir, "meta_${record.id}.json")
+        metaFile.outputStream().use {
+            Json.encodeToStream(serializer<Metadata>(), record.metadata, it)
+        }
+
+        data[record.id] = LazyData(record.id, clazz, file, metaFile, dataSerializer)
+        return data[record.id]
     }
 
     fun import(source: InputStream, overwrite: Boolean = false): DataLoader<T>? {
-        val text = source.bufferedReader().use { it.readText() }
+        val text = source.bufferedReader().readText()
         val element = Json.parseToJsonElement(text).jsonObject
         if (element.containsKey("value") && element.containsKey("metadata")) {
             return put(
@@ -113,6 +116,7 @@ abstract class DataStore<T : Data> {
 
     fun delete(record: DataLoader<T>, context: Context) {
         context.deleteFile(record.storeName)
+        context.deleteFile("meta_${record.id}.json")
         data.remove(record.id)
     }
 

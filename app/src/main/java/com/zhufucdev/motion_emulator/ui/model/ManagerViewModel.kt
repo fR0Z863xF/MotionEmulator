@@ -40,7 +40,10 @@ class ManagerViewModel(
             val store =
                 storeByClass[item.clazz] ?: error("unsupported type ${item::class.simpleName}")
             @Suppress("UNCHECKED_CAST")
-            (store as DataStore<T>).delete(item, context)
+            (store as DataStore<T>).apply {
+                require(context)
+                delete(item, context)
+            }
         }
     }
 
@@ -49,7 +52,10 @@ class ManagerViewModel(
             val store =
                 storeByClass[item.clazz] ?: error("unsupported type ${item::class.simpleName}")
             @Suppress("UNCHECKED_CAST")
-            (store as DataStore<T>).put(item, overwrite = true)
+            (store as DataStore<T>).apply {
+                require(context)
+                put(item, overwrite = true)
+            }
         }
     }
 
@@ -131,18 +137,16 @@ class ManagerViewModel(
             val type = name.substring(0, separator)
             val store = storeByType[type] ?: error("unknown type $type")
 
-            withContext(Dispatchers.IO) {
-                store.import(tarIn, overwrite = true)?.let { record ->
-                    data.apply {
-                        val oldIndex = indexOfFirst { it.id == record.id }
-                        if (oldIndex < 0) {
-                            // insert
-                            add(record)
-                        } else {
-                            // update
-                            set(oldIndex, record)
-                        }
-                    }
+            val record = withContext(Dispatchers.IO) {
+                store.require(context)
+                store.import(tarIn, overwrite = true)
+            }
+            record?.let {
+                val oldIndex = data.indexOfFirst { datum -> datum.id == it.id }
+                if (oldIndex < 0) {
+                    data.add(it)
+                } else {
+                    data[oldIndex] = it
                 }
             }
 

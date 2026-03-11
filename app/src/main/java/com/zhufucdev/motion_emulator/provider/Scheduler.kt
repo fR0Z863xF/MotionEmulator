@@ -6,6 +6,7 @@ import com.aventrix.jnanoid.jnanoid.NanoIdUtils
 import com.zhufucdev.me.stub.AgentState
 import com.zhufucdev.me.stub.Emulation
 import com.zhufucdev.me.stub.EmulationInfo
+import com.zhufucdev.me.stub.EmulationResume
 import com.zhufucdev.me.stub.Intermediate
 import com.zhufucdev.motion_emulator.extension.sharedPreferences
 import com.zhufucdev.motion_emulator.plugin.Plugins
@@ -40,8 +41,10 @@ import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.close
 import io.ktor.websocket.send
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -73,6 +76,7 @@ object Scheduler {
     private var mInfo: MutableMap<String, EmulationInfo> = hashMapOf()
     private val mState: MutableMap<String, AgentState> = hashMapOf()
     private val mIntermediate: MutableMap<String, Intermediate> = hashMapOf()
+    private val mIntermediateUpdatedAt: MutableMap<String, Long> = hashMapOf()
 
     private var port = 20230
     private var tls = false
@@ -105,6 +109,7 @@ object Scheduler {
 
     fun setIntermediate(id: String, info: Intermediate) {
         mIntermediate[id] = info
+        mIntermediateUpdatedAt[id] = System.currentTimeMillis()
         intermediateListeners.forEach {
             try {
                 it.invoke(id, info)
@@ -131,6 +136,7 @@ object Scheduler {
             throw IllegalStateException("No agent: $id")
         }
         mIntermediate.remove(id)
+        mIntermediateUpdatedAt.remove(id)
         notifyStateChanged(id, state)
     }
 
@@ -160,6 +166,23 @@ object Scheduler {
 
     internal fun notifyEmulationFailed(id: String) {
         notifyStateChanged(id, AgentState.FAILURE)
+    }
+
+    internal fun notifyAgentDisconnected(id: String) {
+        mIntermediate.remove(id)
+        mIntermediateUpdatedAt.remove(id)
+        mInfo.remove(id)
+        notifyStateChanged(id, AgentState.NOT_JOINED)
+    }
+
+    fun latestResume(): EmulationResume? {
+        val latestId = mIntermediateUpdatedAt.maxByOrNull { it.value }?.key ?: return null
+        val intermediate = mIntermediate[latestId] ?: return null
+        return EmulationResume(
+            loopIndex = intermediate.loopIndex,
+            progress = intermediate.progress,
+            elapsed = intermediate.elapsed,
+        )
     }
 
     private fun notifyStateChanged(id: String, state: AgentState) {
@@ -355,7 +378,7 @@ fun Application.eventServer() {
             for (req in incomingAgentStateOf(id)) {
                 when (req) {
                     AgentState.NOT_JOINED -> {
-                        sendCommand(AgentState.NOT_JOINED)
+                        sendCommandSafely(id, AgentState.NOT_JOINED)
                         worker.cancelAndJoin()
                         break
                     }
@@ -363,14 +386,14 @@ fun Application.eventServer() {
                     AgentState.PENDING -> {
                         worker.cancelAndJoin()
                         worker = launchWorker(id)
-                        sendCommand(AgentState.PENDING)
+                        sendCommandSafely(id, AgentState.PENDING)
                     }
 
                     AgentState.RUNNING -> {}
 
                     else -> {
                         if (!req.fin) {
-                            sendCommand(req)
+                            sendCommandSafely(id, req)
                         }
                         worker.cancelAndJoin()
                     }
@@ -388,36 +411,56 @@ fun Application.eventServer() {
             if (emulation == null) {
                 call.respond(HttpStatusCode.NotFound)
             } else {
-                call.respond(emulation)
+                val resume = Scheduler.latestResume()
+                val response = if (resume == null) emulation else emulation.copy(resume = resume)
+                call.respond(response)
             }
         }
     }
 }
 
 private suspend fun WebSocketServerSession.launchWorker(id: String) = launch {
+    var finishedByProtocol = false
     try {
         val info = receiveDeserialized<EmulationInfo>()
         Scheduler.notifyEmulationStarted(id, info)
         for (frame in incoming) {
             if (frame is Frame.Close) {
-                close()
                 break
             } else if (frame.data.singleOrNull() == 0x7f.toByte()) {
                 // this is signal completion
+                finishedByProtocol = true
                 Scheduler.notifyEmulationCompleted(id)
                 break
             } else if (frame.data.singleOrNull() == (-0x7f).toByte()) {
+                finishedByProtocol = true
                 Scheduler.notifyEmulationFailed(id)
                 break
             }
             val data = converter!!.deserialize<Intermediate>(frame)
             Scheduler.setIntermediate(id, data)
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: ClosedReceiveChannelException) {
+        Unit
     } catch (e: Exception) {
-        e.printStackTrace()
+        Log.w("Scheduler", "Error while receiving agent updates: $id", e)
+    } finally {
+        if (isActive && !finishedByProtocol) {
+            Scheduler.notifyAgentDisconnected(id)
+            Log.w("Scheduler", "Agent data channel disconnected unexpectedly: $id")
+        }
     }
 }
 
 private suspend fun WebSocketSession.sendCommand(state: AgentState) {
     send(byteArrayOf(state.ordinal.toByte()))
+}
+
+private suspend fun WebSocketSession.sendCommandSafely(id: String, state: AgentState) {
+    runCatching { sendCommand(state) }
+        .onFailure {
+            Log.d("Scheduler", "Skip sending ${state.name} to disconnected agent: $id")
+        }
 }

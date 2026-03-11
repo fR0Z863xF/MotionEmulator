@@ -11,6 +11,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        mavenLocal()
         maven { setUrl("https://www.jitpack.io") }
         maven { setUrl("https://api.xposed.info/") }
         maven { setUrl("https://s01.oss.sonatype.org/content/groups/staging/") }

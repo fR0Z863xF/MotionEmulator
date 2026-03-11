@@ -26,7 +26,10 @@ object MotionRecorder {
 
     fun start(sensorsRequired: List<Int>): MotionCallback {
         val start = System.currentTimeMillis()
-        val timelines = sensorsRequired.associateWith { arrayListOf<SensorMoment>() }
+        val availableSensors = sensorsRequired.mapNotNull { type ->
+            sensors.getDefaultSensor(type)?.let { sensor -> type to sensor }
+        }
+        val timelines = availableSensors.associate { (type, _) -> type to arrayListOf<SensorMoment>() }
         var callbackListener: ((SensorMoment) -> Unit)? = null
         val typedListeners = hashMapOf<Int, (SensorMoment) -> Unit>()
 
@@ -48,8 +51,7 @@ object MotionRecorder {
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
 
-        sensorsRequired.forEach {
-            val sensor = sensors.getDefaultSensor(it)
+        availableSensors.forEach { (_, sensor) ->
             sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
         }
 
