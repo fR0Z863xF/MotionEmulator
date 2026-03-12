@@ -34,11 +34,6 @@
             android:theme="@style/Theme.MotionEmulator"
             tools:targetApi="33">
         <activity
-                android:name=".ui.UpdaterActivity"
-                android:exported="false"
-                android:label="@string/title_activity_updater"
-                android:theme="@style/Theme.MotionEmulator" />
-        <activity
                 android:name=".ui.SettingsActivity"
                 android:exported="false"
                 android:label="@string/title_activity_settings"
@@ -82,15 +77,6 @@
             <meta-data
                     android:name="android.support.FILE_PROVIDER_PATHS"
                     android:resource="@xml/shared_paths" />
-        </provider>
-        <provider
-                android:authorities="com.zhufucdev.motion_emulator.update_provider"
-                android:name="com.zhufucdev.update.UpdateProvider"
-                android:exported="false"
-                android:grantUriPermissions="true">
-            <meta-data
-                    android:name="android.support.FILE_PROVIDER_PATHS"
-                    android:resource="@xml/update_file_paths" />
         </provider>
         <provider
                 android:name=".provider.SettingsProvider"

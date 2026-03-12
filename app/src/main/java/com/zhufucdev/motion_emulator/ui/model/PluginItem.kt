@@ -46,7 +46,6 @@ sealed class PluginItemState {
     data object NotInstalled : PluginItemState()
     sealed class Installed(val plugin: Plugin) : PluginItemState() {
         class Idle(plugin: Plugin) : Installed(plugin)
-        class Updatable(plugin: Plugin) : Installed(plugin)
     }
 }
 

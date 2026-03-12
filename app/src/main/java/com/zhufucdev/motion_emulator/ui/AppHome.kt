@@ -72,11 +72,9 @@ import com.zhufucdev.motion_emulator.ui.composition.LocalNavControllerProvider
 import com.zhufucdev.motion_emulator.ui.composition.LocalNestedScrollConnectionProvider
 import com.zhufucdev.motion_emulator.ui.composition.LocalSnackbarProvider
 import com.zhufucdev.motion_emulator.ui.model.ManagerViewModel
-import com.zhufucdev.update.AppUpdater
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppHome(windowSize: WindowSizeClass, updater: AppUpdater) {
+fun AppHome(windowSize: WindowSizeClass) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val showTopBar = backStackEntry?.destination.showGlobalTopBar()
@@ -85,8 +83,6 @@ fun AppHome(windowSize: WindowSizeClass, updater: AppUpdater) {
     val snackbars = remember { SnackbarHostState() }
     val context = androidx.compose.ui.platform.LocalContext.current
     val preferences = remember { context.sharedPreferences() }
-    val updateFoundText = stringResource(R.string.text_update_found)
-    val upgradeText = stringResource(R.string.action_upgrade)
     var pendingMapRoute by remember { mutableStateOf<String?>(null) }
     var pendingMapProvider by remember { mutableStateOf("gcp_maps") }
 
@@ -97,19 +93,6 @@ fun AppHome(windowSize: WindowSizeClass, updater: AppUpdater) {
             pendingMapProvider = "gcp_maps"
         } else {
             navController.navigate(route)
-        }
-    }
-
-    LaunchedEffect(updater.update) {
-        if (updater.update != null) {
-            val result = snackbars.showSnackbar(
-                message = updateFoundText,
-                actionLabel = upgradeText,
-                withDismissAction = true
-            )
-            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                navController.navigate(HomeDestinations.Updater.route)
-            }
         }
     }
 
@@ -379,14 +362,6 @@ private fun NavContent(paddingValues: PaddingValues) {
                 )
             }
         }
-        composable(HomeDestinations.Updater.route) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val navController = LocalNavControllerProvider.current
-            LaunchedEffect(Unit) {
-                context.startActivity(Intent(context, UpdaterActivity::class.java))
-                navController?.popBackStack()
-            }
-        }
         navigation(
             startDestination = "home",
             route = PrimaryDestinations.Data.route
@@ -562,8 +537,7 @@ enum class PrimaryDestinations(
 
 enum class HomeDestinations(val route: String) {
     Record("record"),
-    Trace("trace_drawing"),
-    Updater("updater")
+    Trace("trace_drawing")
 }
 
 fun PrimaryDestinations.selected(currentDest: NavDestination): Boolean =

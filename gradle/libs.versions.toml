@@ -12,7 +12,7 @@ constraintlayout = "1.0.1"
 lifecycle = "2.7.0"
 activityCompose = "1.8.2"
 composeBom = "2025.08.00"
-coroutine = "1.7.3"
+coroutine = "1.10.2"
 workRuntime = "2.9.0"
 windowSize = "1.1.2"
 navigation = "2.7.6"
@@ -20,7 +20,7 @@ mdi = "1.6.0"
 vico = "1.13.1"
 jsonSerialization = "1.6.2"
 secrets = "2.0.1"
-ktor = "2.3.4"
+ktor = "3.4.1"
 crunch = "2.0.3"
 guava = "31.1-android"
 jnanoid = "2.0.0"
@@ -31,8 +31,7 @@ gmaps = "3.2.1"
 mapsUtils = "3.4.0"
 spongycastle = "1.58.0.0"
 
-stub = "1.1.5"
-update = "1.0.0"
+stub = "1.1.6"
 sdk = "1.0.0"
 
 [libraries]
@@ -87,7 +86,6 @@ google-gms-maps = { group = "com.google.android.gms", name = "play-services-maps
 madgag-spongycastle = { group = "com.madgag.spongycastle", name = "bcpkix-jdk15on", version.ref = "spongycastle" }
 
 stub = { group = "com.zhufucdev.me", name = "stub", version.ref = "stub" }
-update = { group = "com.zhufucdev.update", name = "app", version.ref = "update" }
 sdk = { group = "com.zhufucdev.sdk", name = "kotlin", version.ref = "sdk" }
 
 [plugins]

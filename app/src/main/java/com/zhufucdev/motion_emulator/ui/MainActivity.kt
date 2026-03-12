@@ -5,9 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -17,11 +15,9 @@ import com.zhufucdev.motion_emulator.data.DataLoader
 import com.zhufucdev.motion_emulator.data.Emulations
 import com.zhufucdev.motion_emulator.data.Motions
 import com.zhufucdev.motion_emulator.data.Traces
-import com.zhufucdev.motion_emulator.extension.AppUpdater
 import com.zhufucdev.motion_emulator.extension.defaultKtorClient
 import com.zhufucdev.motion_emulator.extension.setUpStatusBar
 import com.zhufucdev.motion_emulator.plugin.Plugins
-import com.zhufucdev.motion_emulator.ui.model.AppViewModel
 import com.zhufucdev.motion_emulator.ui.model.EmulationsViewModel
 import com.zhufucdev.motion_emulator.ui.model.ManagerViewModel
 import com.zhufucdev.motion_emulator.ui.model.PluginViewModel
@@ -40,25 +36,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MotionEmulatorTheme {
-                val updater = remember {
-                    AppUpdater(this)
-                }
-                LaunchedEffect(Unit) {
-                    updater.check()
-                }
-
-                AppHome(calculateWindowSizeClass(this), updater)
+                AppHome(calculateWindowSizeClass(this))
             }
         }
     }
 
     override val defaultViewModelProviderFactory: ViewModelProvider.Factory = viewModelFactory {
-        initializer {
-            AppViewModel(
-                updater = AppUpdater(this@MainActivity)
-            )
-        }
-
         initializer {
             Emulations.require(this@MainActivity)
             EmulationsViewModel(

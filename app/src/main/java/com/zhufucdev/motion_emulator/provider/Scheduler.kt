@@ -20,8 +20,9 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.engine.ApplicationEngine
-import io.ktor.server.engine.ApplicationEngineEnvironmentBuilder
-import io.ktor.server.engine.applicationEngineEnvironment
+import io.ktor.server.engine.EmbeddedServer
+import io.ktor.server.application.serverConfig
+import io.ktor.server.engine.applicationEnvironment
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.engine.sslConnector
@@ -69,6 +70,7 @@ import kotlin.coroutines.resume
  * - [AgentState.FAILURE] when the agent returns an exception.
  */
 object Scheduler {
+    private const val RESUME_TTL_MS = 2 * 60 * 1000L
     private val stateListeners = mutableSetOf<(String, AgentState) -> Boolean>()
     private val intermediateListeners = mutableSetOf<(String, Intermediate) -> Unit>()
 
@@ -80,7 +82,7 @@ object Scheduler {
 
     private var port = 20230
     private var tls = false
-    private lateinit var server: ApplicationEngine
+    private lateinit var server: EmbeddedServer<*, *>
     private var serverRunning = false
 
     fun init(context: Context) {
@@ -91,15 +93,18 @@ object Scheduler {
         val prefs = context.sharedPreferences()
         port = prefs.getString("provider_port", "")!!.toIntOrNull() ?: 20230
         tls = prefs.getBoolean("provider_tls", true)
-        server = embeddedServer(Netty, applicationEngineEnvironment {
+        val environment = applicationEnvironment { }
+        val config = serverConfig(environment) {
+            developmentMode = false
+            module(Application::eventServer)
+        }
+        server = embeddedServer(Netty, config) {
             if (tls) {
                 configureSsl(port)
             } else {
                 configure(port)
             }
-
-            module(Application::eventServer)
-        })
+        }
 
         server.start(false)
         serverRunning = true
@@ -169,20 +174,48 @@ object Scheduler {
     }
 
     internal fun notifyAgentDisconnected(id: String) {
-        mIntermediate.remove(id)
-        mIntermediateUpdatedAt.remove(id)
         mInfo.remove(id)
         notifyStateChanged(id, AgentState.NOT_JOINED)
     }
 
+    private fun cleanupStaleIntermediate() {
+        val now = System.currentTimeMillis()
+        val expired = mIntermediateUpdatedAt
+            .filterValues { now - it > RESUME_TTL_MS }
+            .keys
+        if (expired.isEmpty()) return
+        expired.forEach {
+            mIntermediate.remove(it)
+            mIntermediateUpdatedAt.remove(it)
+        }
+    }
+
+    private fun intermediateToResume(intermediate: Intermediate) = EmulationResume(
+        loopIndex = intermediate.loopIndex,
+        progress = intermediate.progress,
+        elapsed = intermediate.elapsed,
+    )
+
     fun latestResume(): EmulationResume? {
+        cleanupStaleIntermediate()
         val latestId = mIntermediateUpdatedAt.maxByOrNull { it.value }?.key ?: return null
         val intermediate = mIntermediate[latestId] ?: return null
-        return EmulationResume(
-            loopIndex = intermediate.loopIndex,
-            progress = intermediate.progress,
-            elapsed = intermediate.elapsed,
-        )
+        return intermediateToResume(intermediate)
+    }
+
+    fun resumeOf(id: String): EmulationResume? {
+        cleanupStaleIntermediate()
+        val intermediate = mIntermediate[id]
+        val updatedAt = mIntermediateUpdatedAt[id]
+        if (intermediate != null && updatedAt != null) {
+            val expired = System.currentTimeMillis() - updatedAt > RESUME_TTL_MS
+            if (!expired) {
+                return intermediateToResume(intermediate)
+            }
+            mIntermediate.remove(id)
+            mIntermediateUpdatedAt.remove(id)
+        }
+        return latestResume()
     }
 
     private fun notifyStateChanged(id: String, state: AgentState) {
@@ -206,6 +239,8 @@ object Scheduler {
     var emulation: Emulation?
         set(value) {
             if (mEmulation != value) {
+                mIntermediate.clear()
+                mIntermediateUpdatedAt.clear()
                 if (value == null) {
                     val original = mInfo
                     mInfo = mutableMapOf()
@@ -333,7 +368,7 @@ interface ListenCallback {
     fun resume()
 }
 
-fun ApplicationEngineEnvironmentBuilder.configureSsl(port: Int) {
+fun ApplicationEngine.Configuration.configureSsl(port: Int) {
     val keyAlis = "motion_provider"
     val keyPassword = NanoIdUtils.randomNanoId().toCharArray()
     val keyStore = generateSelfSignedKeyStore(keyAlis, keyPassword)
@@ -349,7 +384,7 @@ fun ApplicationEngineEnvironmentBuilder.configureSsl(port: Int) {
     }
 }
 
-fun ApplicationEngineEnvironmentBuilder.configure(port: Int) {
+fun ApplicationEngine.Configuration.configure(port: Int) {
     connector {
         host = "127.0.0.1"
         this.port = port
@@ -403,7 +438,10 @@ fun Application.eventServer() {
 
         get("/current/{id?}") {
             val id = call.parameters["id"]
-            if (id != null && Scheduler.currentEmulationState(id) != AgentState.PENDING) {
+            if (
+                id != null &&
+                Scheduler.currentEmulationState(id) !in setOf(AgentState.PENDING, AgentState.NOT_JOINED)
+            ) {
                 call.respond(HttpStatusCode.Forbidden)
                 return@get
             }
@@ -411,7 +449,7 @@ fun Application.eventServer() {
             if (emulation == null) {
                 call.respond(HttpStatusCode.NotFound)
             } else {
-                val resume = Scheduler.latestResume()
+                val resume = if (id == null) Scheduler.latestResume() else Scheduler.resumeOf(id)
                 val response = if (resume == null) emulation else emulation.copy(resume = resume)
                 call.respond(response)
             }

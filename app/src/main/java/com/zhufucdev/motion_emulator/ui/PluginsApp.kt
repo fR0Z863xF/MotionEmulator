@@ -2,7 +2,6 @@
 
 package com.zhufucdev.motion_emulator.ui
 
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.expandVertically
@@ -76,11 +75,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.zhufucdev.motion_emulator.R
-import com.zhufucdev.motion_emulator.extension.UPDATE_FILE_PROVIDER_AUTHORITY
 import com.zhufucdev.motion_emulator.extension.insert
 import com.zhufucdev.motion_emulator.plugin.Plugin
-import com.zhufucdev.motion_emulator.plugin.PluginDownloader
-import com.zhufucdev.motion_emulator.plugin.PluginUpdater
 import com.zhufucdev.motion_emulator.ui.component.CaptionText
 import com.zhufucdev.motion_emulator.ui.component.TooltipHost
 import com.zhufucdev.motion_emulator.ui.component.TooltipScope
@@ -93,14 +89,8 @@ import com.zhufucdev.motion_emulator.ui.model.PluginViewModel
 import com.zhufucdev.motion_emulator.ui.theme.MotionEmulatorTheme
 import com.zhufucdev.motion_emulator.ui.theme.PaddingCommon
 import com.zhufucdev.motion_emulator.ui.theme.PaddingLarge
-import com.zhufucdev.update.InstallationPermissionContract
-import com.zhufucdev.update.UpdaterStatus
-import com.zhufucdev.update.canInstallUpdate
-import com.zhufucdev.update.installUpdate
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
-import java.io.File
 import kotlin.math.max
 
 @Composable
@@ -361,94 +351,15 @@ private fun LazyListScope.operativeArea(
             val coroutine = rememberCoroutineScope()
             val context = LocalContext.current
 
-            val updater = remember {
-                when (val sc = it.state) {
-                    is PluginItemState.NotInstalled -> PluginDownloader(it.product!!.key, context)
-                    is PluginItemState.Installed -> PluginUpdater(
-                        sc.plugin,
-                        context,
-                        it.product?.key
-                    )
-                }
-            }
-
-            LaunchedEffect(true) {
-                if (updater is PluginUpdater) {
-                    updater.check()
-                    if (updater.update != null) {
-                        it.state =
-                            PluginItemState.Installed.Updatable((it.state as PluginItemState.Installed).plugin)
-                    }
-                }
-            }
-
-            val launcher = rememberLauncherForActivityResult(
-                remember {
-                    // this should be remembered, or
-                    // class be made into single instance
-                    InstallationPermissionContract()
-                },
-            ) { canInstall ->
-                if (canInstall) {
-                    val status = updater.status
-                    if (status is UpdaterStatus.ReadyToInstall) {
-                        context.installUpdate(status.file, UPDATE_FILE_PROVIDER_AUTHORITY)
-                    }
-                }
-            }
-            val downloadProgress by remember(updater.status) {
-                derivedStateOf {
-                    when (val status = updater.status) {
-                        is UpdaterStatus.Working.Downloading -> {
-                            status.progress
-                        }
-
-                        is UpdaterStatus.Working.Checking, UpdaterStatus.ReadyToDownload -> {
-                            0f
-                        }
-
-                        else -> {
-                            -1f
-                        }
-                    }
-                }
-            }
-
-            fun installRequest(update: File) {
-                if (!context.packageManager.canInstallUpdate()) {
-                    launcher.launch(context.packageName)
-                } else {
-                    context.installUpdate(update, UPDATE_FILE_PROVIDER_AUTHORITY)
-                }
+            val downloadProgress by remember(it.state) {
+                derivedStateOf { -1f }
             }
 
             val snackbars = LocalSnackbarProvider.current
             Surface(
                 onClick = {
-                    val status = updater.status
-                    if (status is UpdaterStatus.Working.Downloading) {
-                        return@Surface
-                    } else if (status is UpdaterStatus.ReadyToInstall) {
-                        installRequest(status.file)
-                        return@Surface
-                    }
-
-                    coroutine.launch(Dispatchers.IO) {
-                        if (updater.update == null) {
-                            updater.check()
-                        }
-
-                        if (updater.update == null) {
-                            snackbars?.showSnackbar(context.getString(R.string.text_asset_fetch_failed))
-                            return@launch
-                        }
-                        val file = try {
-                            updater.download()
-                        } catch (e: Exception) {
-                            snackbars?.showSnackbar(context.getString(R.string.text_asset_fetch_failed))
-                            return@launch
-                        }
-                        installRequest(file)
+                    coroutine.launch {
+                        snackbars?.showSnackbar(context.getString(R.string.text_asset_fetch_failed))
                     }
                 },
                 modifier = mod
@@ -529,15 +440,8 @@ private fun PluginItemView(
             when (item.state) {
                 is PluginItemState.NotInstalled -> {
                     Icon(
-                        painter = painterResource(id = com.zhufucdev.update.R.drawable.ic_baseline_download),
+                        painter = painterResource(id = R.drawable.ic_baseline_extension_24),
                         contentDescription = stringResource(id = R.string.des_plugin_downloadable),
-                    )
-                }
-
-                is PluginItemState.Installed.Updatable -> {
-                    Icon(
-                        painter = painterResource(id = com.zhufucdev.update.R.drawable.ic_baseline_update),
-                        contentDescription = stringResource(id = R.string.des_plugin_update),
                     )
                 }
 
@@ -568,7 +472,6 @@ private fun PluginItemView(
                 ) {
                     when (item.state) {
                         is PluginItemState.NotInstalled -> Text(stringResource(id = R.string.des_plugin_downloadable))
-                        is PluginItemState.Installed.Updatable -> Text(stringResource(id = R.string.des_plugin_update))
                         else -> {
                             if (item.subtitle.isNotBlank()) {
                                 Text(text = item.subtitle)
@@ -608,7 +511,7 @@ fun PluginItemPreview() {
                     "e3",
                     "example plug-in 3",
                     enabled = true,
-                    state = PluginItemState.Installed.Updatable(
+                    state = PluginItemState.Installed.Idle(
                         Plugin(
                             "com.example.plugin",
                             "example plug-in 3",

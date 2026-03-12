@@ -33,8 +33,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -66,7 +66,6 @@ dependencies {
     // Internal
     implementation(libs.sdk)
     implementation(libs.stub)
-    implementation(libs.update)
     // Ktor
     implementation(libs.ktor.client.jvm)
     implementation(libs.ktor.client.okhttp)
