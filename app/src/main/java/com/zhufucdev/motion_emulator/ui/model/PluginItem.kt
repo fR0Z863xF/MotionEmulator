@@ -4,7 +4,6 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.zhufucdev.sdk.ProductQuery
 import com.zhufucdev.motion_emulator.plugin.Plugin
 import com.zhufucdev.motion_emulator.plugin.Plugins
 
@@ -16,7 +15,6 @@ class PluginItem(
     val id: String,
     val title: String,
     val subtitle: String = "",
-    val product: ProductQuery? = null,
     enabled: Boolean,
     state: PluginItemState,
 ) {
@@ -55,14 +53,6 @@ fun Plugin.toPluginItem(enabled: Boolean) = PluginItem(
     subtitle = description,
     enabled = enabled,
     state = PluginItemState.Installed.Idle(this)
-)
-
-fun ProductQuery.toPluginItem() = PluginItem(
-    id = packageId ?: key,
-    title = name,
-    enabled = false,
-    state = PluginItemState.NotInstalled,
-    product = this
 )
 
 fun PluginItem.findPlugin() = Plugins.available.firstOrNull { it.packageName == id }

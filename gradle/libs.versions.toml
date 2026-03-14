@@ -1,11 +1,11 @@
 [versions]
 agp = "8.13.2"
 kotlin = "2.3.0"
-coreKtx = "1.12.0"
+coreKtx = "1.18.0"
 preference = "1.2.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
-espressoCore = "3.5.1"
+espressoCore = "3.7.0"
 appcompat = "1.6.1"
 ksp = "2.3.0"
 constraintlayout = "1.0.1"
@@ -13,16 +13,16 @@ lifecycle = "2.7.0"
 activityCompose = "1.8.2"
 composeBom = "2025.08.00"
 coroutine = "1.10.2"
-workRuntime = "2.9.0"
-windowSize = "1.1.2"
-navigation = "2.7.6"
+workRuntime = "2.11.1"
+windowSize = "1.4.0"
+navigation = "2.9.7"
 mdi = "1.6.0"
 vico = "1.13.1"
-jsonSerialization = "1.6.2"
+jsonSerialization = "1.10.0"
 secrets = "2.0.1"
 ktor = "3.4.1"
 crunch = "2.0.3"
-guava = "31.1-android"
+guava = "33.5.0-android"
 jnanoid = "2.0.0"
 compress = "1.22"
 amap = "9.5.0"
@@ -31,8 +31,7 @@ gmaps = "3.2.1"
 mapsUtils = "3.4.0"
 spongycastle = "1.58.0.0"
 
-stub = "1.1.6"
-sdk = "1.0.0"
+stub = "1.1.12b"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -86,7 +85,6 @@ google-gms-maps = { group = "com.google.android.gms", name = "play-services-maps
 madgag-spongycastle = { group = "com.madgag.spongycastle", name = "bcpkix-jdk15on", version.ref = "spongycastle" }
 
 stub = { group = "com.zhufucdev.me", name = "stub", version.ref = "stub" }
-sdk = { group = "com.zhufucdev.sdk", name = "kotlin", version.ref = "sdk" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

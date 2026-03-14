@@ -9,21 +9,19 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.zhufucdev.motion_emulator.BuildConfig
 import com.zhufucdev.motion_emulator.data.Telephonies
 import com.zhufucdev.motion_emulator.data.DataLoader
 import com.zhufucdev.motion_emulator.data.Emulations
 import com.zhufucdev.motion_emulator.data.Motions
 import com.zhufucdev.motion_emulator.data.Traces
-import com.zhufucdev.motion_emulator.extension.defaultKtorClient
 import com.zhufucdev.motion_emulator.extension.setUpStatusBar
 import com.zhufucdev.motion_emulator.plugin.Plugins
 import com.zhufucdev.motion_emulator.ui.model.EmulationsViewModel
 import com.zhufucdev.motion_emulator.ui.model.ManagerViewModel
 import com.zhufucdev.motion_emulator.ui.model.PluginViewModel
+import com.zhufucdev.motion_emulator.ui.model.PluginItemState
 import com.zhufucdev.motion_emulator.ui.model.toPluginItem
 import com.zhufucdev.motion_emulator.ui.theme.MotionEmulatorTheme
-import com.zhufucdev.sdk.findAsset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
@@ -60,13 +58,8 @@ class MainActivity : ComponentActivity() {
             PluginViewModel(
                 plugins = plugins,
                 downloadable = flow {
-                    val queries =
-                        defaultKtorClient.findAsset(BuildConfig.server_uri, "me", "plugin")
                     emit(
-                        queries.map {
-                            it.packageId?.let { plugins.firstOrNull { p -> p.id == it } }
-                                ?: it.toPluginItem()
-                        }
+                        plugins.filter { it.state is PluginItemState.NotInstalled }
                     )
                 }
             )

@@ -64,7 +64,6 @@ android {
 
 dependencies {
     // Internal
-    implementation(libs.sdk)
     implementation(libs.stub)
     // Ktor
     implementation(libs.ktor.client.jvm)

@@ -35,7 +35,8 @@ import io.ktor.server.util.getOrFail
 import io.ktor.server.websocket.WebSocketServerSession
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.converter
-import io.ktor.server.websocket.receiveDeserialized
+import io.ktor.server.websocket.pingPeriod
+import io.ktor.server.websocket.timeout
 import io.ktor.server.websocket.webSocketRaw
 import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
@@ -54,6 +55,10 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.protobuf.ProtoBuf
 import kotlin.collections.set
 import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.seconds
+
+private const val WS_PING_PERIOD_SECONDS = 15L
+private const val WS_TIMEOUT_SECONDS = 30L
 
 /**
  * The lifecycle of an agent:
@@ -398,6 +403,8 @@ fun Application.eventServer() {
     }
 
     install(WebSockets) {
+        pingPeriod = WS_PING_PERIOD_SECONDS.seconds
+        timeout = WS_TIMEOUT_SECONDS.seconds
         maxFrameSize = Long.MAX_VALUE
         masking = false
         contentConverter = KotlinxWebsocketSerializationConverter(ProtoBuf)
@@ -459,24 +466,89 @@ fun Application.eventServer() {
 
 private suspend fun WebSocketServerSession.launchWorker(id: String) = launch {
     var finishedByProtocol = false
+    var closedByPeer = false
     try {
-        val info = receiveDeserialized<EmulationInfo>()
+        var info: EmulationInfo? = null
+        while (info == null) {
+            when (val frame = incoming.receive()) {
+                is Frame.Close -> {
+                    closedByPeer = true
+                    Log.i("Scheduler", "Agent sent close frame before started: $id")
+                    return@launch
+                }
+
+                is Frame.Ping -> {
+                    send(Frame.Pong(frame.data))
+                }
+
+                is Frame.Pong -> Unit
+                else -> {
+                    val single = frame.data.singleOrNull()
+                    if (single == 0x7f.toByte() || single == (-0x7f).toByte()) {
+                        Log.w(
+                            "Scheduler",
+                            "Unexpected control frame before started: $single (id=$id, type=${frame.frameType.name})"
+                        )
+                        continue
+                    }
+                    runCatching {
+                        info = converter!!.deserialize<EmulationInfo>(frame)
+                    }.onFailure { error ->
+                        Log.w(
+                            "Scheduler",
+                            "Failed to decode EmulationInfo (id=$id, type=${frame.frameType.name}, size=${frame.data.size})",
+                            error
+                        )
+                        throw error
+                    }
+                }
+            }
+        }
         Scheduler.notifyEmulationStarted(id, info)
         for (frame in incoming) {
-            if (frame is Frame.Close) {
-                break
-            } else if (frame.data.singleOrNull() == 0x7f.toByte()) {
-                // this is signal completion
-                finishedByProtocol = true
-                Scheduler.notifyEmulationCompleted(id)
-                break
-            } else if (frame.data.singleOrNull() == (-0x7f).toByte()) {
-                finishedByProtocol = true
-                Scheduler.notifyEmulationFailed(id)
-                break
+            when (frame) {
+                is Frame.Close -> {
+                    closedByPeer = true
+                    Log.i("Scheduler", "Agent sent close frame: $id")
+                    break
+                }
+
+                is Frame.Ping -> {
+                    send(Frame.Pong(frame.data))
+                }
+
+                is Frame.Pong -> Unit
+                else -> {
+                    when (frame.data.singleOrNull()) {
+                        0x7f.toByte() -> {
+                            finishedByProtocol = true
+                            Scheduler.notifyEmulationCompleted(id)
+                            break
+                        }
+
+                        (-0x7f).toByte() -> {
+                            finishedByProtocol = true
+                            Scheduler.notifyEmulationFailed(id)
+                            break
+                        }
+
+                        else -> {
+                            val data = runCatching {
+                                converter!!.deserialize<Intermediate>(frame)
+                            }.onFailure { error ->
+                                Log.w(
+                                    "Scheduler",
+                                    "Failed to decode Intermediate (id=$id, type=${frame.frameType.name}, size=${frame.data.size})",
+                                    error
+                                )
+                            }.getOrNull()
+                            if (data != null) {
+                                Scheduler.setIntermediate(id, data)
+                            }
+                        }
+                    }
+                }
             }
-            val data = converter!!.deserialize<Intermediate>(frame)
-            Scheduler.setIntermediate(id, data)
         }
     } catch (e: CancellationException) {
         throw e
@@ -487,7 +559,11 @@ private suspend fun WebSocketServerSession.launchWorker(id: String) = launch {
     } finally {
         if (isActive && !finishedByProtocol) {
             Scheduler.notifyAgentDisconnected(id)
-            Log.w("Scheduler", "Agent data channel disconnected unexpectedly: $id")
+            if (closedByPeer) {
+                Log.i("Scheduler", "Agent data channel closed by peer: $id")
+            } else {
+                Log.w("Scheduler", "Agent data channel disconnected unexpectedly: $id")
+            }
         }
     }
 }
