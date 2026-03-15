@@ -12,6 +12,8 @@ import com.zhufucdev.motion_emulator.data.*
 import com.zhufucdev.motion_emulator.extension.FILE_PROVIDER_AUTHORITY
 import com.zhufucdev.motion_emulator.extension.dateString
 import com.zhufucdev.motion_emulator.extension.effectiveTimeFormat
+import com.zhufucdev.motion_emulator.extension.exportCoordinateSystem
+import com.zhufucdev.motion_emulator.extension.toCoordinateSystem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -72,10 +74,19 @@ class ManagerViewModel(
         val bufOut = BufferedOutputStream(stream)
         val gzOut = GzipCompressorOutputStream(bufOut)
         val tarOut = TarArchiveOutputStream(gzOut)
+        val exportCoord = context.sharedPreferences().exportCoordinateSystem()
 
         items.forEach { (type, data) ->
             fun <T : Data> export(loader: DataLoader<T>, store: DataStore<*>, dest: OutputStream) {
-                (store as DataStore<T>).export(loader, dest)
+                val actual = if (exportCoord != null && loader.value is com.zhufucdev.me.stub.Trace) {
+                    @Suppress("UNCHECKED_CAST")
+                    val trace = loader.value as com.zhufucdev.me.stub.Trace
+                    val converted = trace.toCoordinateSystem(exportCoord)
+                    com.zhufucdev.motion_emulator.data.WorkingData(converted, loader.metadata) as DataLoader<T>
+                } else {
+                    loader
+                }
+                (store as DataStore<T>).export(actual, dest)
             }
             data.forEach { datum ->
                 val tmpFile = File.createTempFile(type, null, context.cacheDir)

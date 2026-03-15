@@ -150,8 +150,14 @@ private fun MapsSettings(modifier: Modifier = Modifier) {
         "gcp_maps" to stringResource(R.string.name_google_maps),
         "amap" to stringResource(R.string.name_amap),
     )
+    val coordSystems = listOf(
+        "auto" to stringResource(R.string.name_coord_sys_auto),
+        "wgs84" to "WGS84",
+        "gcj02" to "GCJ02",
+    )
     var mapProvider by remember { mutableStateOf(prefs.getString("map_provider", "gcp_maps") ?: "gcp_maps") }
     var poiProvider by remember { mutableStateOf(prefs.getString("poi_provider", "gcp_maps") ?: "gcp_maps") }
+    var exportCoord by remember { mutableStateOf(prefs.getString("export_coord_sys", "auto") ?: "auto") }
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
@@ -177,6 +183,20 @@ private fun MapsSettings(modifier: Modifier = Modifier) {
                 onClick = {
                     poiProvider = provider
                     prefs.edit().putString("poi_provider", provider).apply()
+                }
+            )
+        }
+
+        item {
+            SettingsGroupTitle(stringResource(R.string.title_settings_export_coord))
+        }
+        items(coordSystems) { (value, title) ->
+            SettingsChoiceItem(
+                title = title,
+                selected = exportCoord == value,
+                onClick = {
+                    exportCoord = value
+                    prefs.edit().putString("export_coord_sys", value).apply()
                 }
             )
         }

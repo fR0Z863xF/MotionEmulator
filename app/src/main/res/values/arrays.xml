@@ -10,6 +10,18 @@
         <item>amap</item>
     </string-array>
 
+    <string-array name="coord_sys_entries">
+        <item>@string/name_coord_sys_auto</item>
+        <item>WGS84</item>
+        <item>GCJ02</item>
+    </string-array>
+
+    <string-array name="coord_sys_values">
+        <item>auto</item>
+        <item>wgs84</item>
+        <item>gcj02</item>
+    </string-array>
+
     <string-array name="emulation_methods_entries">
         <item>@string/title_method_xposed_only</item>
         <item>@string/title_method_hybrid</item>
