@@ -20,6 +20,10 @@
             android:label="@string/title_permission_read"
             android:description="@string/text_permission_read" />
 
+    <permission
+            android:name="com.zhufucdev.motion_emulator.permission.BIND_EMU_TRANSPORT"
+            android:protectionLevel="normal" />
+
     <application
             android:name=".MeApplication"
             android:allowBackup="true"
@@ -84,6 +88,10 @@
                 android:exported="true"
                 android:enabled="true"
                 android:readPermission="com.zhufucdev.motion_emulator.PERMISSION.READ" />
+
+        <service
+                android:name=".provider.EmuTransportService"
+                android:exported="true" />
 
         <meta-data
                 android:name="com.amap.api.v2.apikey"

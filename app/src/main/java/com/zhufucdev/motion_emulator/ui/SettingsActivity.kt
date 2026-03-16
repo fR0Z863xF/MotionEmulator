@@ -255,9 +255,14 @@ private fun EmulationSettings(modifier: Modifier = Modifier) {
         Method.HYBRID.name.lowercase() to stringResource(R.string.title_method_hybrid),
         Method.TEST_PROVIDER_ONLY.name.lowercase() to stringResource(R.string.title_method_test_provider_only),
     )
+    val transports = listOf(
+        "aidl" to "AIDL",
+        "ws" to "WebSocket",
+    )
     var method by remember { mutableStateOf(prefs.getString("method", Method.XPOSED_ONLY.name.lowercase()) ?: Method.XPOSED_ONLY.name.lowercase()) }
     var port by remember { mutableStateOf(prefs.getString("provider_port", "20230") ?: "20230") }
     var useTls by remember { mutableStateOf(prefs.getBoolean("provider_tls", true)) }
+    var transport by remember { mutableStateOf(prefs.getString("transport", "aidl") ?: "aidl") }
     val isPortValid = remember(port) { port.toIntOrNull()?.let { it in 1024..65535 } == true }
 
     fun notifyPlugins() {
@@ -277,6 +282,20 @@ private fun EmulationSettings(modifier: Modifier = Modifier) {
                 onClick = {
                     method = item
                     prefs.edit().putString("method", item).apply()
+                    notifyPlugins()
+                }
+            )
+        }
+        item {
+            SettingsGroupTitle("Transport")
+        }
+        items(transports) { (item, title) ->
+            SettingsChoiceItem(
+                title = title,
+                selected = transport == item,
+                onClick = {
+                    transport = item
+                    prefs.edit().putString("transport", item).apply()
                     notifyPlugins()
                 }
             )

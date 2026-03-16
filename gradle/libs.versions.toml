@@ -31,7 +31,7 @@ gmaps = "3.2.1"
 mapsUtils = "3.4.0"
 spongycastle = "1.58.0.0"
 
-stub = "1.1.12b"
+stub = "1.1.13b"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

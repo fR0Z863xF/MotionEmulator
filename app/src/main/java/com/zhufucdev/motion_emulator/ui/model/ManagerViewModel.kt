@@ -13,6 +13,7 @@ import com.zhufucdev.motion_emulator.extension.FILE_PROVIDER_AUTHORITY
 import com.zhufucdev.motion_emulator.extension.dateString
 import com.zhufucdev.motion_emulator.extension.effectiveTimeFormat
 import com.zhufucdev.motion_emulator.extension.exportCoordinateSystem
+import com.zhufucdev.motion_emulator.extension.sharedPreferences
 import com.zhufucdev.motion_emulator.extension.toCoordinateSystem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
