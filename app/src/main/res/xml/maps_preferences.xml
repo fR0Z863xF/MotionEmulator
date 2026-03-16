@@ -19,4 +19,14 @@
             app:entryValues="@array/map_values"
             app:defaultValue="gcp_maps"
             app:useSimpleSummaryProvider="true"/>
+
+    <ListPreference
+            app:key="export_coord_sys"
+            app:title="@string/title_settings_export_coord"
+            app:summary="@string/text_settings_export_coord"
+            app:icon="@drawable/ic_baseline_share_24"
+            app:entries="@array/coord_sys_entries"
+            app:entryValues="@array/coord_sys_values"
+            app:defaultValue="auto"
+            app:useSimpleSummaryProvider="true"/>
 </PreferenceScreen>

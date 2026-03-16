@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.fragment.app.Fragment
 import androidx.preference.PreferenceManager
+import com.zhufucdev.me.stub.CoordinateSystem
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -28,4 +29,11 @@ fun Context.effectiveTimeFormat(): DateFormat {
     val preferences by lazySharedPreferences()
     return preferences.effectiveTimeFormat()
 }
+
+fun SharedPreferences.exportCoordinateSystem(): CoordinateSystem? =
+    when (getString("export_coord_sys", "auto")) {
+        "wgs84" -> CoordinateSystem.WGS84
+        "gcj02" -> CoordinateSystem.GCJ02
+        else -> null
+    }
 

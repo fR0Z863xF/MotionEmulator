@@ -2,5 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/EmuXPws_plugin" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/MotionEmulatorSdk" vcs="Git" />
   </component>
 </project>

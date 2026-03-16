@@ -143,6 +143,8 @@
     <string name="text_salt_trace">When adding salt to a trace, consider the order of magnitude to be E-4 or smaller
     </string>
     <string name="title_overview">Overview</string>
+    <string name="title_settings_export_coord">Export coordinate system</string>
+    <string name="text_settings_export_coord">Force coordinate conversion when exporting traces</string>
     <string name="title_exported">Export at %s</string>
     <string name="title_export">Export</string>
     <string name="title_import">Import</string>
@@ -157,6 +159,7 @@
     <string name="title_settings_naming">Naming</string>
     <string name="title_settings_map_provider">Map provider</string>
     <string name="name_google_maps">Google Maps</string>
+    <string name="name_coord_sys_auto">Auto</string>
     <string name="name_amap">AMap</string>
     <string name="title_settings_poi_provider">POI provider</string>
     <string name="caption_settings_time_format">TIME FORMAT</string>

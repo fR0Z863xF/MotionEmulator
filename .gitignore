@@ -14,7 +14,11 @@
 .externalNativeBuild
 .cxx
 local.properties
-
+# local syslink to other workspace. i use this to make agent work better.
+/MotionEmulatorSdk
+/MotionEmulatorLegacy
+/EmuXPws_plugin
+/.agents
 # API Key
 /app/src/main/res/values/api_keys.xml
 
