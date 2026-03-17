@@ -6,10 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoFixHigh
@@ -17,18 +15,14 @@ import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,7 +36,17 @@ import com.zhufucdev.me.stub.Method
 import com.zhufucdev.motion_emulator.R
 import com.zhufucdev.motion_emulator.extension.sharedPreferences
 import com.zhufucdev.motion_emulator.plugin.Plugins
+import com.zhufucdev.motion_emulator.ui.component.SettingsChoiceOption
+import com.zhufucdev.motion_emulator.ui.component.SettingsGroupTitle
+import com.zhufucdev.motion_emulator.ui.component.SettingsSectionCard
+import com.zhufucdev.motion_emulator.ui.component.SettingsSingleChoiceGroup
+import com.zhufucdev.motion_emulator.ui.component.SettingsSwitchItem
+import com.zhufucdev.motion_emulator.ui.component.SettingsTextFieldItem
 import com.zhufucdev.motion_emulator.ui.theme.MotionEmulatorTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.core.content.edit
 
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,42 +106,65 @@ private fun SettingsScreen(onBack: () -> Unit) {
 
 @Composable
 private fun SettingsHome(modifier: Modifier = Modifier, onOpen: (SettingsSection) -> Unit) {
-    val sections = listOf(
-        Quadruple(
-            SettingsSection.MAPS,
-            R.string.title_settings_map,
-            R.string.text_pending_map_provider,
-            Icons.Default.Map,
-        ),
-        Quadruple(
-            SettingsSection.NAMING,
-            R.string.title_settings_naming,
-            R.string.caption_settings_time_format,
-            Icons.Default.EditCalendar,
-        ),
-        Quadruple(
-            SettingsSection.EMULATION,
-            R.string.title_settings_emulation,
-            R.string.title_emulation_method,
-            Icons.Default.AutoFixHigh,
-        ),
-    )
+    val context = LocalContext.current
+    val prefs = remember { context.sharedPreferences() }
+    val mapProvider = prefs.getString("map_provider", "gcp_maps") ?: "gcp_maps"
+    val methodValue = prefs.getString("method", Method.XPOSED_ONLY.name.lowercase())
+        ?: Method.XPOSED_ONLY.name.lowercase()
+    val transportValue = prefs.getString("transport", "aidl") ?: "aidl"
+    val timeFormatSummary = prefs.getString("time_format", "dd-MM-yyyy hh:mm:ss")
+        ?: "dd-MM-yyyy hh:mm:ss"
+    val mapSummary = when (mapProvider) {
+        "amap" -> stringResource(R.string.name_amap)
+        else -> stringResource(R.string.name_google_maps)
+    }
+    val methodSummary = when (methodValue) {
+        Method.HYBRID.name.lowercase() -> stringResource(R.string.title_method_hybrid)
+        Method.TEST_PROVIDER_ONLY.name.lowercase() -> stringResource(R.string.title_method_test_provider_only)
+        else -> stringResource(R.string.title_method_xposed_only)
+    }
+    val transportSummary = when (transportValue) {
+        "ws" -> stringResource(R.string.title_transport_ws)
+        else -> stringResource(R.string.title_transport_aidl)
+    }
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        items(sections) { (section, title, description, icon) ->
-            ListItem(
-                headlineContent = { Text(stringResource(title)) },
-                leadingContent = { Icon(icon, contentDescription = null) },
-                modifier = Modifier.fillMaxWidth(),
-                supportingContent = { Text(stringResource(description)) }
+        item {
+            SettingsSectionCard(
+                title = stringResource(R.string.title_settings_map),
+                description = stringResource(R.string.text_pending_map_provider),
+                icon = Icons.Default.Map,
+                summary = stringResource(
+                    R.string.text_settings_current_value,
+                    mapSummary
+                ),
+                onClick = { onOpen(SettingsSection.MAPS) }
             )
-            TextButton(
-                onClick = { onOpen(section) },
-                modifier = Modifier.padding(horizontal = 16.dp)
-            ) {
-                Text(stringResource(R.string.action_continue))
-            }
-            HorizontalDivider()
+        }
+        item {
+            SettingsSectionCard(
+                title = stringResource(R.string.title_settings_naming),
+                description = stringResource(R.string.caption_settings_time_format),
+                icon = Icons.Default.EditCalendar,
+                summary = stringResource(
+                    R.string.text_settings_current_value,
+                    timeFormatSummary
+                ),
+                onClick = { onOpen(SettingsSection.NAMING) }
+            )
+        }
+        item {
+            SettingsSectionCard(
+                title = stringResource(R.string.title_settings_emulation),
+                description = stringResource(R.string.title_emulation_method),
+                icon = Icons.Default.AutoFixHigh,
+                summary = stringResource(
+                    R.string.text_settings_emulation_summary,
+                    methodSummary,
+                    transportSummary
+                ),
+                onClick = { onOpen(SettingsSection.EMULATION) }
+            )
         }
     }
 }
@@ -161,42 +188,64 @@ private fun MapsSettings(modifier: Modifier = Modifier) {
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
-            SettingsGroupTitle(stringResource(R.string.title_settings_map_provider))
-        }
-        items(mapProviders) { (provider, title) ->
-            SettingsChoiceItem(
-                title = title,
-                selected = mapProvider == provider,
-                onClick = {
-                    mapProvider = provider
-                    prefs.edit().putString("map_provider", provider).apply()
+            SettingsSingleChoiceGroup(
+                title = stringResource(R.string.title_settings_map_provider),
+                options = mapProviders.map { (provider, title) ->
+                    SettingsChoiceOption(
+                        title = title,
+                        description = if (provider == "gcp_maps") {
+                            stringResource(R.string.text_provider_google_maps)
+                        } else {
+                            stringResource(R.string.text_provider_amap)
+                        },
+                        selected = mapProvider == provider,
+                        onSelect = {
+                            mapProvider = provider
+                            prefs.edit { putString("map_provider", provider) }
+                        }
+                    )
                 }
             )
         }
         item {
-            SettingsGroupTitle(stringResource(R.string.title_settings_poi_provider))
-        }
-        items(mapProviders) { (provider, title) ->
-            SettingsChoiceItem(
-                title = title,
-                selected = poiProvider == provider,
-                onClick = {
-                    poiProvider = provider
-                    prefs.edit().putString("poi_provider", provider).apply()
+            SettingsSingleChoiceGroup(
+                title = stringResource(R.string.title_settings_poi_provider),
+                options = mapProviders.map { (provider, title) ->
+                    SettingsChoiceOption(
+                        title = title,
+                        description = if (provider == "gcp_maps") {
+                            stringResource(R.string.text_provider_google_poi)
+                        } else {
+                            stringResource(R.string.text_provider_amap_poi)
+                        },
+                        selected = poiProvider == provider,
+                        onSelect = {
+                            poiProvider = provider
+                            prefs.edit { putString("poi_provider", provider) }
+                        }
+                    )
                 }
             )
         }
 
         item {
-            SettingsGroupTitle(stringResource(R.string.title_settings_export_coord))
-        }
-        items(coordSystems) { (value, title) ->
-            SettingsChoiceItem(
-                title = title,
-                selected = exportCoord == value,
-                onClick = {
-                    exportCoord = value
-                    prefs.edit().putString("export_coord_sys", value).apply()
+            SettingsSingleChoiceGroup(
+                title = stringResource(R.string.title_settings_export_coord),
+                description = stringResource(R.string.text_settings_export_coord),
+                options = coordSystems.map { (value, title) ->
+                    SettingsChoiceOption(
+                        title = title,
+                        description = if (value == "auto") {
+                            stringResource(R.string.text_coord_auto)
+                        } else {
+                            stringResource(R.string.text_coord_fixed, title)
+                        },
+                        selected = exportCoord == value,
+                        onSelect = {
+                            exportCoord = value
+                            prefs.edit { putString("export_coord_sys", value) }
+                        }
+                    )
                 }
             )
         }
@@ -209,39 +258,62 @@ private fun NamingSettings(modifier: Modifier = Modifier) {
     val prefs = remember { context.sharedPreferences() }
     var customFormat by remember { mutableStateOf(prefs.getBoolean("customize_time_format", false)) }
     var format by remember { mutableStateOf(prefs.getString("time_format", "dd-MM-yyyy hh:mm:ss") ?: "dd-MM-yyyy hh:mm:ss") }
+    var previewText by remember { mutableStateOf("") }
+    var isFormatValid by remember { mutableStateOf(true) }
+    val invalidText = stringResource(R.string.text_time_format_invalid)
+
+    fun updatePreview(value: String) {
+        runCatching {
+            val formatter = SimpleDateFormat(value, Locale.getDefault())
+            previewText = formatter.format(Date())
+            isFormatValid = true
+        }.onFailure {
+            previewText = invalidText
+            isFormatValid = false
+        }
+    }
+
+    LaunchedEffect(format) {
+        updatePreview(format)
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = stringResource(R.string.caption_settings_time_format),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.title_settings_use_custom_time_format)) },
-            trailingContent = {
-                Switch(
-                    checked = customFormat,
-                    onCheckedChange = {
-                        customFormat = it
-                        prefs.edit().putBoolean("customize_time_format", it).apply()
-                    }
-                )
+        SettingsSwitchItem(
+            title = stringResource(R.string.title_settings_use_custom_time_format),
+            checked = customFormat,
+            description = stringResource(R.string.text_time_format_hint),
+            onCheckedChange = {
+                customFormat = it
+                prefs.edit { putBoolean("customize_time_format", it) }
             }
         )
-        OutlinedTextField(
+        SettingsTextFieldItem(
+            label = stringResource(R.string.settings_title_time_format),
             value = format,
             onValueChange = {
                 format = it
-                prefs.edit().putString("time_format", it).apply()
+                updatePreview(it)
+                if (isFormatValid) {
+                    prefs.edit { putString("time_format", it) }
+                }
             },
-            label = { Text(stringResource(R.string.settings_title_time_format)) },
             enabled = customFormat,
-            modifier = Modifier.fillMaxWidth()
+            isError = customFormat && !isFormatValid,
+            supportingText = when {
+                !customFormat -> stringResource(R.string.text_time_format_disabled)
+                !isFormatValid -> invalidText
+                else -> stringResource(R.string.text_time_format_preview, previewText)
+            }
         )
     }
 }
@@ -256,14 +328,15 @@ private fun EmulationSettings(modifier: Modifier = Modifier) {
         Method.TEST_PROVIDER_ONLY.name.lowercase() to stringResource(R.string.title_method_test_provider_only),
     )
     val transports = listOf(
-        "aidl" to "AIDL",
-        "ws" to "WebSocket",
+        "aidl" to stringResource(R.string.title_transport_aidl),
+        "ws" to stringResource(R.string.title_transport_ws),
     )
     var method by remember { mutableStateOf(prefs.getString("method", Method.XPOSED_ONLY.name.lowercase()) ?: Method.XPOSED_ONLY.name.lowercase()) }
     var port by remember { mutableStateOf(prefs.getString("provider_port", "20230") ?: "20230") }
     var useTls by remember { mutableStateOf(prefs.getBoolean("provider_tls", true)) }
     var transport by remember { mutableStateOf(prefs.getString("transport", "aidl") ?: "aidl") }
     val isPortValid = remember(port) { port.toIntOrNull()?.let { it in 1024..65535 } == true }
+    val portHint = stringResource(R.string.text_port_hint)
 
     fun notifyPlugins() {
         if (Plugins.initialized) {
@@ -273,106 +346,64 @@ private fun EmulationSettings(modifier: Modifier = Modifier) {
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
-            SettingsGroupTitle(stringResource(R.string.title_emulation_method))
-        }
-        items(methods) { (item, title) ->
-            SettingsChoiceItem(
-                title = title,
-                selected = method == item,
-                onClick = {
-                    method = item
-                    prefs.edit().putString("method", item).apply()
-                    notifyPlugins()
-                }
-            )
-        }
-        item {
-            SettingsGroupTitle("Transport")
-        }
-        items(transports) { (item, title) ->
-            SettingsChoiceItem(
-                title = title,
-                selected = transport == item,
-                onClick = {
-                    transport = item
-                    prefs.edit().putString("transport", item).apply()
-                    notifyPlugins()
-                }
-            )
-        }
-        item {
-            SettingsGroupTitle(stringResource(R.string.caption_server))
-            OutlinedTextField(
-                value = port,
-                onValueChange = {
-                    port = it
-                    if (it.toIntOrNull()?.let { p -> p in 1024..65535 } == true) {
-                        prefs.edit().putString("provider_port", it).apply()
-                        notifyPlugins()
-                    }
-                },
-                label = { Text(stringResource(R.string.title_server_port)) },
-                isError = !isPortValid,
-                supportingText = {
-                    if (!isPortValid) {
-                        Text(stringResource(R.string.text_input_invalid))
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            )
-        }
-        item {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.title_use_tls)) },
-                trailingContent = {
-                    Switch(
-                        checked = useTls,
-                        onCheckedChange = {
-                            useTls = it
-                            prefs.edit().putBoolean("provider_tls", it).apply()
+            SettingsSingleChoiceGroup(
+                title = stringResource(R.string.title_emulation_method),
+                options = methods.map { (item, title) ->
+                    SettingsChoiceOption(
+                        title = title,
+                        selected = method == item,
+                        onSelect = {
+                            method = item
+                            prefs.edit { putString("method", item) }
                             notifyPlugins()
                         }
                     )
                 }
             )
         }
+        item {
+            SettingsSingleChoiceGroup(
+                title = stringResource(R.string.title_transport),
+                options = transports.map { (item, title) ->
+                    SettingsChoiceOption(
+                        title = title,
+                        selected = transport == item,
+                        onSelect = {
+                            transport = item
+                            prefs.edit { putString("transport", item) }
+                            notifyPlugins()
+                        }
+                    )
+                }
+            )
+        }
+        item {
+            SettingsGroupTitle(stringResource(R.string.caption_server))
+            SettingsTextFieldItem(
+                label = stringResource(R.string.title_server_port),
+                value = port,
+                onValueChange = {
+                    port = it
+                    if (it.toIntOrNull()?.let { p -> p in 1024..65535 } == true) {
+                        prefs.edit { putString("provider_port", it) }
+                        notifyPlugins()
+                    }
+                },
+                isError = !isPortValid,
+                supportingText = if (isPortValid) portHint else stringResource(R.string.text_input_invalid)
+            )
+        }
+        item {
+            SettingsSwitchItem(
+                title = stringResource(R.string.title_use_tls),
+                checked = useTls,
+                description = stringResource(R.string.text_tls_hint),
+                onCheckedChange = {
+                    useTls = it
+                    prefs.edit { putBoolean("provider_tls", it) }
+                    notifyPlugins()
+                }
+            )
+        }
     }
 }
-
-@Composable
-private fun SettingsGroupTitle(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-    )
-}
-
-@Composable
-private fun SettingsChoiceItem(title: String, selected: Boolean, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = {
-            if (selected) {
-                Text(text = "Selected")
-            }
-        },
-        modifier = Modifier.fillMaxWidth()
-    )
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.padding(horizontal = 16.dp)
-    ) {
-        Text(if (selected) "Current" else "Use")
-    }
-    HorizontalDivider()
-}
-
-private data class Quadruple<A, B, C, D>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D,
-)

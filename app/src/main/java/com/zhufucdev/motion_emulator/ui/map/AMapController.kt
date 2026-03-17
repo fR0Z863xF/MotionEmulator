@@ -58,9 +58,10 @@ class AMapController(private val map: AMap, context: Context) : MapController(co
             else android.graphics.Color.rgb(250, 250, 250)
 
     override fun moveCamera(location: Point, focus: Boolean, animate: Boolean) {
+        val zoom = if (focus) 19F else map.cameraPosition.zoom
         val camera = CameraUpdateFactory.newLatLngZoom(
             location.ensureAmapCoordinate(context).toAmapLatLng(),
-            if (focus) 40F else 10F
+            zoom
         )
         if (animate) map.animateCamera(camera) else map.moveCamera(camera)
     }
@@ -160,13 +161,14 @@ class AMapController(private val map: AMap, context: Context) : MapController(co
 
     private fun redrawLocationIndicator(point: LatLng) {
         locationIndicator?.remove()
+        val radius = (1_048_576 / 2.0.pow(map.cameraPosition.zoom.toDouble())).coerceAtLeast(6.0)
         locationIndicator = map.addCircle(
             CircleOptions()
                 .center(point)
                 .fillColor(indicatorColor)
                 .strokeColor(indicatorStroke)
                 .strokeWidth(5F)
-                .radius(1_048_576 / 2.0.pow(map.cameraPosition.zoom.toDouble()))
+                .radius(radius)
                 .zIndex(10F)
         )
     }

@@ -123,6 +123,7 @@ fun EmulateHome(paddingValues: PaddingValues) {
 
     val agentStates = remember { mutableStateListOf<AgentStatusSnapshot>() }
     var controllerState by remember { mutableStateOf(Scheduler.controllerState) }
+    var latestIntermediate by remember { mutableStateOf<Intermediate?>(null) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -148,6 +149,7 @@ fun EmulateHome(paddingValues: PaddingValues) {
                     )
                 }
             )
+            latestIntermediate = agentStates.firstOrNull { it.intermediate != null }?.intermediate
             delay(1000)
         }
     }
@@ -212,7 +214,7 @@ fun EmulateHome(paddingValues: PaddingValues) {
                 item {
                     EmulationPreviewCard(
                         provider = mapProvider,
-                        agentStates = agentStates,
+                        latestIntermediate = latestIntermediate,
                     )
                 }
                 item {
@@ -239,7 +241,7 @@ fun EmulateHome(paddingValues: PaddingValues) {
 @Composable
 private fun EmulationPreviewCard(
     provider: UnifiedMapProvider,
-    agentStates: List<AgentStatusSnapshot>,
+    latestIntermediate: Intermediate?,
 ) {
     val trace = Scheduler.emulation?.trace?.value
     var controller by remember { mutableStateOf<MapController?>(null) }
@@ -257,9 +259,9 @@ private fun EmulationPreviewCard(
         controller?.boundCamera(TraceBounds(trace), animate = false)
     }
 
-    LaunchedEffect(controller, agentStates) {
-        val latest = agentStates.firstOrNull { it.intermediate != null }?.intermediate ?: return@LaunchedEffect
-        controller?.moveCamera(latest.location, focus = true, animate = false)
+    LaunchedEffect(controller, latestIntermediate) {
+        val latest = latestIntermediate ?: return@LaunchedEffect
+        controller?.moveCamera(latest.location, focus = true, animate = true)
         controller?.updateLocationIndicator(latest.location.toLocation())
     }
 
@@ -296,6 +298,7 @@ private fun EmulationStatusCard(
     onDetermine: () -> Unit,
     onRestart: () -> Unit,
 ) {
+    val hasEmulation = Scheduler.emulation != null
     val averageProgress = agentStates.mapNotNull { it.intermediate?.progress }.average().takeIf { !it.isNaN() }
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -303,26 +306,34 @@ private fun EmulationStatusCard(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = when (controllerState) {
-                    AgentState.NOT_JOINED -> stringResource(R.string.title_controller_offline)
+                text = when {
+                    !hasEmulation -> stringResource(R.string.title_emulation_idle)
+                    controllerState == AgentState.NOT_JOINED -> stringResource(R.string.title_controller_offline)
+                    else -> when (controllerState) {
                     AgentState.PENDING -> stringResource(R.string.title_emulation_pending)
                     AgentState.RUNNING -> stringResource(R.string.title_emulation_ongoing)
                     AgentState.PAUSED -> stringResource(R.string.title_emulation_stopped)
                     AgentState.COMPLETED -> stringResource(R.string.title_emulation_completed)
                     AgentState.FAILURE -> stringResource(R.string.title_emulation_failure)
                     AgentState.CANCELED -> stringResource(R.string.title_emulation_canceled)
+                    else -> stringResource(R.string.title_unknown)
+                }
                 },
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                text = when (controllerState) {
-                    AgentState.NOT_JOINED -> stringResource(R.string.text_controller_offline)
+                text = when {
+                    !hasEmulation -> stringResource(R.string.text_emulation_idle)
+                    controllerState == AgentState.NOT_JOINED -> stringResource(R.string.text_controller_offline)
+                    else -> when (controllerState) {
                     AgentState.PENDING -> stringResource(R.string.text_emulation_pending)
                     AgentState.RUNNING -> stringResource(R.string.text_swipe_to_see_more)
                     AgentState.PAUSED -> stringResource(R.string.title_emulation_stopped)
                     AgentState.COMPLETED -> stringResource(R.string.title_emulation_completed)
                     AgentState.FAILURE -> stringResource(R.string.title_emulation_failure)
                     AgentState.CANCELED -> stringResource(R.string.title_emulation_canceled)
+                    else -> stringResource(R.string.text_controller_offline)
+                }
                 },
                 style = MaterialTheme.typography.bodyLarge
             )
@@ -333,7 +344,7 @@ private fun EmulationStatusCard(
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
             }
-            if (controllerState != AgentState.NOT_JOINED && Scheduler.emulation != null) {
+            if (controllerState != AgentState.NOT_JOINED && hasEmulation) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = {
                         if (controllerState == AgentState.RUNNING || controllerState == AgentState.PENDING) {
@@ -352,7 +363,12 @@ private fun EmulationStatusCard(
                     }
                 }
             }
-            if (agentStates.isEmpty()) {
+            if (!hasEmulation) {
+                Text(
+                    text = stringResource(R.string.text_emulation_idle_hint),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else if (agentStates.isEmpty()) {
                 Text(
                     text = stringResource(R.string.text_emulation_pending),
                     style = MaterialTheme.typography.bodyMedium
